@@ -1,0 +1,32 @@
+Setting up WP-CLI
+=================
+
+
+Download the lastest version from - https://raw.github.com/wp-cli/builds/gh-pages/phar/wp-cli.phar 
+Make it executable - chmod +x wp-cli.phar
+Check it works - ./wp-cli.phar --info
+Move it to bin to allow it to be executed from anywhere.  On a mac, thats - mv /Users/scott/Dropbox/Tartan/git/tartanSync/wp-cli.phar /usr/local/bin/wp
+Retest - wp --info
+
+For each Local website, need to change wp-config.php as follows:
+
+	Click the (i) icon next to the version of PHP in Local
+	Look for the line - Loaded Configuration File	
+		It should have something like this in it - /Users/scott/Library/Application Support/Local/run/y2BiwWIa2/conf/php/php.ini
+		Copy the string between /run/ and /conf/ to a notepad.  In this example it's y2BiwWIa2
+		Find the location of mysqld.sock.  On my machine it's:
+			/Users/scott/Library/Application\ Support/Local/run/y2BiwWIa2/mysql/mysqld.sock
+			NB: Note that part of this path is the string saved above.
+		Save that location in a notepad.
+	Find wp-config.php and open it in an editor
+	Search for the lines:
+		/** MySQL hostname */
+		define( 'DB_HOST', 'localhost' );
+	Change to:
+		/** MySQL hostname */
+		define( 'DB_HOST', 'localhost:/Users/scott/Library/Application\ Support/Local/run/y2BiwWIa2/mysql/mysqld.sock' );
+
+	In the same location as that wp-config.php file, test by:
+		wp plugin list
+	you should see a list of the plugins, drawn from the database for that site.
+	NB, if you get a database error, something's gone wrong with the above.
