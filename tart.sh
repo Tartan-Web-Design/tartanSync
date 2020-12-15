@@ -17,7 +17,6 @@
 #################################################################################################
 
 
-
 # localPath is the path to the local source to rsync.  It varies by machine, and is 
 # combined with localSubPath to get the full path through to wp-content.
 # NB the script checks for the existence of these folders one by one; it's
