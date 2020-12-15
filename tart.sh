@@ -25,8 +25,9 @@
 
 localPath=( 
     "/Users/scott/Local Sites/" # Malcolm, Mac Laptop
-    "/Users/Scott/Local Sites/" # Scott Laptop One <TBC>
-    "/home/scott/Local Sites/" ) # Scott Laptop Two <TBC>
+    "/Users/Scott/Local Sites/" # Scott Laptop One <
+    "/home/scott/Local Sites/" ) # Scott Laptop Two 
+    "/home/scott/Local Sites/" ) # Malcolm Laptop Two 
 
 # localSubPath is concatenated with localPath to get the complete path to the local
 # location of the files.  That is:
@@ -37,7 +38,8 @@ localSubPath=(
     "testwildcampingscot/app/public/wp-content/" 
     "tartan-live/app/public/wp-content/test/" 
     "wild/app/public/wp-content/test/"
-    "tartan/app/public/wp-content/")
+    "tartan/app/public/wp-content/"
+    "tartanstaging/app/public/wp-content/")
 
 # environment is used to capture the index for localSubPath, serverPath and websiteChown in the following way:
 #   The input variable -e is must be one of the e=${OPTARG} args in getopts below.  $e is then instantiated to that arg input.  e.g. "test"
@@ -52,7 +54,8 @@ environment=(
     "test" 
     "tartan" 
     "wildcamping"
-    "tartan-staging")
+    "tartan-staging"
+    "tartan-staging-malcolm-hua")
 
 # server is invariant for the same Plesk installation.  If we ever get more than one, this script will need to be updated with an addition
 # commandline arg.
@@ -66,6 +69,7 @@ serverPath=(
     "/var/www/vhosts/wildcamping.scot/test.wildcamping.scot/wp-content/" 
     "/var/www/vhosts/tartanwebdesign.net/httpdocs/wp-content/test/" 
     "/var/www/vhosts/wildcamping.scot/httpdocs/wp-content/test/"
+    "/var/www/vhosts/tartanwebdesign.net/staging.tartanwebdesign.net/wp-content"
     "/var/www/vhosts/tartanwebdesign.net/staging.tartanwebdesign.net/wp-content")
 
 # websiteChown is the user:group that the pushed folder to the server needs to be changed to in order for Plesk to have the correct priviledges to 
@@ -76,6 +80,7 @@ websiteChown=(
     "wildcamping:psacln" 
     "tartan:psacln" 
     "wildcamping:psacln"
+    "tartan:psacln"
     "tartan:psacln")
 
 
@@ -367,7 +372,8 @@ while getopts ":r:e:p:m:" o; do
   				test|\
                 tartan|\
   				wildcamping|\
-  				tartan-staging)
+  				tartan-staging|\
+                tartan-staging-malcolm-hua)
     			:  # Do nothing
     			;;
   				*)
