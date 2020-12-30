@@ -24,6 +24,17 @@ echo ""
 
 server="root@165.232.110.116"
 
+localPath=(
+    "/Users/scott/Local Sites/" # Malcolm, Mac Laptop
+    "/Users/Scott/Local Sites/" # Scott Laptop One <
+    "/home/scott/Local Sites/"  # Scott Laptop Two
+    "/home/scott/Local Sites/" ) # Malcolm Laptop Two
+
+localByFlywheelSubPath='/app/public/wp-content/';
+serverPathFirstPart="/var/www/vhosts/";
+serverPathSecondPart="/wp-content/";
+serverPrimaryPathPart="/httpdocs";
+
 if [ $# -lt 3 ]
 	then
 		if [ $1 == "path" ] 
@@ -48,18 +59,6 @@ if [ $# -lt 3 ]
   		action=$1
 fi
 
-
-
-localPath=(
-    "/Users/scott/Local Sites/" # Malcolm, Mac Laptop
-    "/Users/Scott/Local Sites/" # Scott Laptop One <
-    "/home/scott/Local Sites/"  # Scott Laptop Two
-    "/home/scott/Local Sites/" ) # Malcolm Laptop Two
-
-localByFlywheelSubPath='/app/public/wp-content/test/';
-serverPathFirstPart="/var/www/vhosts/";
-serverPathSecondPart="/wp-content/test/";
-serverPrimaryPathPart="/httpdocs";
 
 
 # Test for the existence of each entry in localPath on the machine the script is running on.
@@ -92,8 +91,6 @@ if [[ $action == 'pull' ]]; then
 	fi
 
 
-char="."
-
 count=$(awk -F"." '{print NF-1}' <<< "${remoteWebsiteName}")
 
 if [ $count = 2 ] ; then
@@ -104,9 +101,6 @@ else
 fi
 
 remoteWebsite="$serverPathFirstPart$remoteWebsiteName$serverPathSecondPart"
-
-
-
 
 
   	if [[ $action == 'pull' ]]; then
@@ -138,7 +132,7 @@ else
 fi
 
 websiteChown=$(ssh $server 'bash -s' < ./tartanSync.sh chn $remoteWebsite)
-
+echo User:Group - $websiteChown
 
 function sanity_check {
 
@@ -199,46 +193,62 @@ function doSync {
     if [ $action == "push" ]; then
 
         if [[ $run == "full-run" ]]; then
+
             	echo This is a FULL RUN, PUSH...
             	echo BACKING UP first...  
             	echo Source: "${remoteWebsite}" 
             	echo Backup Location: "${remoteWebsite%/}_bak"
-            ssh -i ~/.ssh/rsync -p 22 $server rsync --owner --group --archive --compress --delete -eh "${remoteWebsite}" "${remoteWebsite%/}_bak"
+
+            ssh $server rsync --owner --group --archive --compress --delete -eh "${remoteWebsite}" "${remoteWebsite%/}_bak"
+
+	
             	echo ""
             	echo Backup done...
 				echo Rsyncing...
+
          	rsync --owner --group --archive  --compress --delete -e  "ssh -i ~/.ssh/rsync -p 22" --stats "${localWebsite}" "$server:${remoteWebsite}"
-        	ssh -i ~/.ssh/rsync -p 22 $server chown -R "${websiteChown}" "${remoteWebsite}"
+        	ssh $server chown -R "${websiteChown}" "${remoteWebsite}"
 
         elif [[ $run == "dry-run" ]]; then
+
         		echo ""
             	echo This is a DRY RUN, PUSH...
+
 			rsync --dry-run --owner --group --archive  --compress --delete -e  "ssh -i ~/.ssh/rsync -p 22" --stats "${localWebsite}" "$server:${remoteWebsite}"
+        
         else
+        
         		echo Rolling back the last push
-        	ssh -i ~/.ssh/rsync -p 22 $server rm -R "${remoteWebsite%/}"
-            ssh -i ~/.ssh/rsync -p 22 $server mv "${remoteWebsite%/}_bak" "${remoteWebsite%/}"
-            ssh -i ~/.ssh/rsync -p 22 $server chown -R "${websiteChown}" "${remoteWebsite}"
+            ssh $server rsync --owner --group --archive --compress --delete -eh "${remoteWebsite%/}_bak/" "${remoteWebsite}" 
+            ssh $server chown -R "${websiteChown}" "${remoteWebsite}"
 
         fi
 
     else # Pulling
 
         if [[ $run == "full-run" ]]; then
+        
             	echo FULL RUN, PULL...
             	echo BACKING UP...  Source: "${localWebsite}" Backup Location: "${localWebsite%/}_bak"
+        
             rsync --owner --group --archive --compress --delete -eh "${localWebsite}" "${localWebsite%/}_bak"
+        
             	echo PULLING...
+        
             rsync --owner --group --archive  --compress --delete -e  "ssh -i ~/.ssh/rsync -p 22" --stats "$server:${remoteWebsite}" "${localWebsite}"
 
         elif [[ $run == "dry-run" ]]; then
+        
         		echo ""
 				echo This is a DRY RUN, PULL...
+        
             rsync --dry-run --owner --group --archive  --compress --delete -e  "ssh -i ~/.ssh/rsync -p 22" --stats "$server:${remoteWebsite}" "${localWebsite}"
+        
         else
+        
         		echo Rolling back the last pull
-        	rm -R "${localWebsite}"
-            mv "${localWebsite%/}_bak" "${localWebsite%/}"
+ 		rsync --owner --group --archive --compress --delete -eh "${localWebsite%/}_bak/" "${localWebsite}" 
+
  
         fi
     fi
