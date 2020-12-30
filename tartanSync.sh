@@ -55,6 +55,9 @@ if [ $# -lt 3 ]
 			else
 	    		usage
     	fi
+  	elif [ $# -gt 3 ]
+  		then
+  			usage
   	else
   		action=$1
 fi
