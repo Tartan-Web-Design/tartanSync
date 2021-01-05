@@ -30,7 +30,7 @@ localPath=(
     "/home/scott/Local Sites/"  # Scott Laptop Two
     "/home/scott/Local Sites/" ) # Malcolm Laptop Two
 
-localByFlywheelSubPath='/app/public/wp-content/';
+localByFlywheelSubPath='/app/public';
 serverPathFirstPart="/var/www/vhosts/";
 serverPathSecondPart="/wp-content/";
 serverPrimaryPathPart="/httpdocs";
@@ -46,6 +46,12 @@ if [ $# -lt 3 ]
 						echo "false"
 				fi
 				exit
+      elif [ $1 == "pullDbase" ] 
+        then 
+          site_url=$2
+          siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}')
+          plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db export db.sql
+        exit
 			elif [ $1 == "chn" ] 
 				then 
 		 			USER=$(stat -c '%U' $2)
@@ -83,16 +89,17 @@ fi
 if [[ $action == 'pull' ]]; then
   			echo "Pulling... "
   		remoteWebsiteName=$2
-		localWebsite="$thisLocalPath$3$localByFlywheelSubPath"
+      remoteDBName=$2
+		localWebsite="$thisLocalPath$3$localByFlywheelSubPath$serverPathSecondPart"
 	elif [[ $action == 'push' ]]; then
 		  	echo "Pushing... "
   		remoteWebsiteName=$3
-		localWebsite="$thisLocalPath$2$localByFlywheelSubPath"
+      remoteDBName=$2
+		localWebsite="$thisLocalPath$2$localByFlywheelSubPath$serverPathSecondPart"
 	else
   			echo "Not pushing or pulling"
   		exit 1
 	fi
-
 
 count=$(awk -F"." '{print NF-1}' <<< "${remoteWebsiteName}")
 
@@ -259,9 +266,25 @@ function doSync {
 
 }
 
+function doDbaseSync {
+
+#################################################################################################
+#                                                                                               #
+# function: doDbaseSync                                                                        #
+#                                                                                               #
+#                                                                                               #
+#################################################################################################
 
 
 
+pullDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pullDbase $remoteDBName)
+   echo $pullDbaseResult
+   scp -r root@165.232.110.116:/var/www/vhosts/wildcamping.scot/test.wildcamping.scot/db.sql "${localWebsite}"..
+echo ${localWebsite}
+  wp db import "${localWebsite}"../db.sql --path='/Users/Scott/Local Sites/testwildcampingscot/app/public/wp-content/..'
+}
+
+doDbaseSync
 sanity_check
 doSync
 

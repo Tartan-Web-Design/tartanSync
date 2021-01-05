@@ -1,17 +1,10 @@
 #!/bin/bash
 
-string="staging.tartan.net"
-char="."
+site_url=$1
 
+echo $1 
 
+siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}')
+##plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db export db.sql
 
-count=$(awk -F"${char}" '{print NF-1}' <<< "${string}")
-
-
-if [ $count = 2 ] ; then
-	echo yea
-	result=$(echo $string | sed 's/^[^.]*.//g')
-	echo $result
-else
-	echo no
-fi
+echo $siteID
