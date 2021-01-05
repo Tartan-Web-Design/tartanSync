@@ -86,16 +86,22 @@ fi
 
 # Deal with the special case of sub-domains, and plesk having a different path for those.
 
+
+
 if [[ $action == 'pull' ]]; then
   			echo "Pulling... "
   		remoteWebsiteName=$2
       remoteDBName=$2
 		localWebsite="$thisLocalPath$3$localByFlywheelSubPath$serverPathSecondPart"
+    searchreplaceOldWebsiteName=$2
+    searchreplaceNewWebsiteName="$3.local"
 	elif [[ $action == 'push' ]]; then
 		  	echo "Pushing... "
   		remoteWebsiteName=$3
       remoteDBName=$2
 		localWebsite="$thisLocalPath$2$localByFlywheelSubPath$serverPathSecondPart"
+        searchreplaceOldWebsiteName="$2.local"
+    searchreplaceNewWebsiteName=$3
 	else
   			echo "Not pushing or pulling"
   		exit 1
@@ -278,10 +284,14 @@ function doDbaseSync {
 
 
 pullDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pullDbase $remoteDBName)
-   echo $pullDbaseResult
    scp -r root@165.232.110.116:/var/www/vhosts/wildcamping.scot/test.wildcamping.scot/db.sql "${localWebsite}"..
-echo ${localWebsite}
-  wp db import "${localWebsite}"../db.sql --path='/Users/Scott/Local Sites/testwildcampingscot/app/public/wp-content/..'
+    cd "$localWebsite"..
+    wp db import db.sql 
+
+     echo Replacing $searchreplaceOldWebsiteName with $searchreplaceNewWebsiteName
+
+    wp search-replace $searchreplaceOldWebsiteName $searchreplaceNewWebsiteName --dry-run
+
 }
 
 doDbaseSync
