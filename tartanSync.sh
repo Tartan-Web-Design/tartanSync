@@ -35,37 +35,44 @@ serverPathFirstPart="/var/www/vhosts/";
 serverPathSecondPart="/wp-content/";
 serverPrimaryPathPart="/httpdocs";
 
-if [ $# -lt 3 ]
+
+if [ $1 == "path" ] 
 	then
-		if [ $1 == "path" ] 
+		if [[ -d $2 ]]
 			then
-				if [[ -d $2 ]]
-					then
-    					echo "true"
-					else
-						echo "false"
-				fi
-				exit
-      elif [ $1 == "pullDbase" ] 
-        then 
-          site_url=$2
-          siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}')
-          plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db export db.sql
-        exit
-			elif [ $1 == "chn" ] 
-				then 
-		 			USER=$(stat -c '%U' $2)
-		 			GROUP=$(stat -c '%G' $2)
-     				echo "$USER:$GROUP"
-				exit
+    		echo "true"
 			else
-	    		usage
-    	fi
-  	elif [ $# -gt 3 ]
-  		then
-  			usage
+				echo "false"
+		fi
+		  exit
+    elif [ $1 == "pullDbase" ] 
+      then 
+
+        site_url=$2
+                echo site_url $site_url
+        siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}')
+        plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db export db.sql
+        exit
+    elif [ $1 == "pushDbase" ] 
+      then 
+        site_url=$2
+        old_url=$3
+        siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}')
+        plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db import db.sql
+        plesk ext wp-toolkit --wp-cli -instance-id $siteID -- search-replace $old_url $site_url
+        exit
+		elif [ $1 == "chn" ] 
+			then 
+		 		USER=$(stat -c '%U' $2)
+		 		GROUP=$(stat -c '%G' $2)
+     			echo "$USER:$GROUP"
+				exit
+    elif [ $# -gt 3 ] 
+      then 
+        usage
   	else
   		action=$1
+      echo AcTIONL $action
 fi
 
 
@@ -98,10 +105,13 @@ if [[ $action == 'pull' ]]; then
 	elif [[ $action == 'push' ]]; then
 		  	echo "Pushing... "
   		remoteWebsiteName=$3
-      remoteDBName=$2
+      remoteDBName=$3
+      echo HERE remoteWebsiteName $remoteWebsiteName
+      echo HERE remoteDBName $remoteDBName
 		localWebsite="$thisLocalPath$2$localByFlywheelSubPath$serverPathSecondPart"
         searchreplaceOldWebsiteName="$2.local"
     searchreplaceNewWebsiteName=$3
+
 	else
   			echo "Not pushing or pulling"
   		exit 1
@@ -281,22 +291,59 @@ function doDbaseSync {
 #                                                                                               #
 #################################################################################################
 
+echo Syncing Dbase
 
-
-pullDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pullDbase $remoteDBName)
-   scp -r root@165.232.110.116:/var/www/vhosts/wildcamping.scot/test.wildcamping.scot/db.sql "${localWebsite}"..
+if [[ $action == 'pull' ]]; then
+echo Here 1 remoteDBName is $remoteDBName
+    pullDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pullDbase $remoteDBName)
+    echo Here 2 $pullDbaseResult
+    echo "   $remoteWebsite"
+    ##scp -r root@165.232.110.116:/var/www/vhosts/wildcamping.scot/test.wildcamping.scot/db.sql "${localWebsite}"..
+    scp -r $server:$remoteWebsite/../db.sql "${localWebsite}"..
     cd "$localWebsite"..
     wp db import db.sql 
+    echo Replacing $searchreplaceOldWebsiteName with $searchreplaceNewWebsiteName
+    wp search-replace $searchreplaceOldWebsiteName $searchreplaceNewWebsiteName 
 
-     echo Replacing $searchreplaceOldWebsiteName with $searchreplaceNewWebsiteName
+  elif [[ $action == 'push' ]]; then
 
-    wp search-replace $searchreplaceOldWebsiteName $searchreplaceNewWebsiteName --dry-run
+    runLocation=$(pwd)
+    echo RUN LOC: $runLocation
+    cd "$localWebsite"..
+    wp db export db.sql
+    scp -r db.sql $server:$remoteWebsite../db.sql 
+    cd $runLocation
+    pushDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pushDbase $remoteDBName $searchreplaceOldWebsiteName)
+
+    successMessage='Success: Imported'
+    replaceSuccessMessage='replacements'
+    if [[ "$pushDbaseResult" == *"$successMessage"* ]] ; then
+      echo $successMessage database
+    else
+      echo Failed to import
+      exit
+    fi
+    if [[ "$pushDbaseResult" == *"$replaceSuccessMessage"* ]] ; then
+
+printf 'Made%s\n' "${pushDbaseResult#*Made}"
+    else
+      echo Failed to search and replace
+      exit
+    fi
+
+
+  else
+      exit 1
+  fi
+
+
+
+
 
 }
 
-doDbaseSync
 sanity_check
 doSync
-
+doDbaseSync
 
 
