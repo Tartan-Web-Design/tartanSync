@@ -52,6 +52,8 @@ serverPrimaryPathPart="/httpdocs";
 # tartanSync is recursive, calling itself for some of the remote function calls.  In order to 
 # achieve this, it passes through some args to itself as followsL
 
+
+
 if [ $1 == "path" ] # Check to find out if the remote directory in arg 2 exists.
 then
   if [[ -d $2 ]]
@@ -72,10 +74,37 @@ then
         site_url=$2
         old_url=$3
         siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}') # Get the siteiD from plesk wp-toolkit
+        plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db export db_bak.sql # Create the backup
+        wait
         plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db import db.sql # Import the database dump previously scp'd
+        wait
         plesk ext wp-toolkit --wp-cli -instance-id $siteID -- search-replace $old_url $site_url # rewrite the local url to the remote url
+        wait
+        rm db.sql
         exit
-		elif [ $1 == "chn" ] # Get the user and group of wp-content on plesk
+		elif [ $1 == "pushDbaseDryRun" ] # Actions to take on the remote plesk server to push the database to plesk and search/replace
+      then 
+        site_url=$2
+        old_url=$3
+        siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}') # Get the siteiD from plesk wp-toolkit
+        plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db export db_dryrun.sql
+        wait
+        plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db import db.sql # Import the database dump previously scp'd
+        wait
+        plesk ext wp-toolkit --wp-cli -instance-id $siteID -- search-replace $old_url $site_url --dry-run # rewrite the local url to the remote url
+        wait
+        plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db import db_dryrun.sql
+        wait
+        rm db_dryrun.sql
+        exit
+    elif [ $1 == "pushDbaseRollback" ] # Actions to take on the remote plesk server to push the database to plesk and search/replace
+      then 
+        site_url=$2
+        old_url=$3
+        siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}') # Get the siteiD from plesk wp-toolkit
+        plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db import db_bak.sql
+        exit
+    elif [ $1 == "chn" ] # Get the user and group of wp-content on plesk
 			then 
        USER=$(stat -c '%U' $2)
        GROUP=$(stat -c '%G' $2)
@@ -180,11 +209,11 @@ websiteChown=$(ssh $server 'bash -s' < ./tartanSync.sh chn $remoteWebsite)
 echo User:Group - $websiteChown
 
 
-function sanity_check {
+function sanity_check_WPContent {
 
 #################################################################################################
 #                                                                                               #
-# function: sanityCheck                                                                        #
+# function: sanityCheckWPContent                                                                #
 #                                                                                               #
 #  A function which provides a command line check whenever something is actually being          #
 #  written.  Called for both pull and push.  Anything other than full-throated agreement        #
@@ -197,6 +226,48 @@ echo "========================================================="
 echo "======  IS THIS A DRY RUN, FULL RUN or ROLL BACK?  ======"
 echo "========================================================="
 echo ""
+
+syncWPContent=true
+
+read -p "Choose carefully (or hit return to skip):  (d/f/r)? " choice
+case $choice in
+  d|D)
+run="dry-run"
+;;
+f|F)
+run="full-run"
+;;
+r|R)
+run="roll-back"
+;;
+
+*)
+echo "OK, not syncing the wp-content folder... "
+syncWPContent=false
+
+;;
+esac
+}
+
+function sanity_check_Dbase {
+
+#################################################################################################
+#                                                                                               #
+# function: sanityCheckDbase                                                                    #
+#                                                                                               #
+#  A function which provides a command line check whenever something is actually being          #
+#  written.  Called for both pull and push.  Anything other than full-throated agreement        #
+#  results in the script exitting.                                                              #
+#                                                                                               #
+#################################################################################################
+
+echo ""
+echo "========================================================="
+echo "======  DO YOU WANT TO SYNC THE DATABASE ?         ======"
+echo "========================================================="
+echo ""
+
+syncDbase=true
 
 read -p "Choose carefully (or hit return to exit):  (d/f/r)? " choice
 case $choice in
@@ -211,8 +282,8 @@ run="roll-back"
 ;;
 
 *)
-echo "Good choice.  Exitting... "
-exit 1
+echo "OK, not syncing the database... "
+syncDbase=false
 
 ;;
 esac
@@ -304,18 +375,40 @@ function doDbaseSync {
 #                                                                                               #
 #################################################################################################
 
-echo Syncing Dbase
+
 
 if [[ $action == 'pull' ]]; then
-  pullDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pullDbase $remoteDBName)
+    if [[ $run == "full-run" ]]; then
+    echo Syncing Dbase 
+    pullDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pullDbase $remoteDBName)
     scp -r $server:$remoteWebsite/../db.sql "${localWebsite}"..
     cd "$localWebsite"..
+    wp db export db_bak.sql
     wp db import db.sql 
     echo Replacing $searchreplaceOldWebsiteName with $searchreplaceNewWebsiteName
     wp search-replace $searchreplaceOldWebsiteName $searchreplaceNewWebsiteName 
-
+    elif [[ $run == "dry-run" ]]; then
+      echo Dry Run Sync of Dbase 
+    pullDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pullDbase $remoteDBName)
+    scp -r $server:$remoteWebsite/../db.sql "${localWebsite}"..
+    cd "$localWebsite"..
+    wp db export db_dryrun.sql
+    wp db import db.sql 
+    echo Dry-run replacing $searchreplaceOldWebsiteName with $searchreplaceNewWebsiteName
+    wp search-replace $searchreplaceOldWebsiteName $searchreplaceNewWebsiteName --dry-run
+    wp db import db_dryrun.sql
+    rm db_dryrun.sql
+    rm db.sql
+ 
+    else
+      echo Rollback of Local Dbase 
+      cd "$localWebsite"..
+      wp db import db_bak.sql
+    fi
+      
   elif [[ $action == 'push' ]]; then
-
+    if [[ $run == "full-run" ]]; then
+    echo Syncing Dbase 
     runLocation=$(pwd)
     cd "$localWebsite"..
     wp db export db.sql
@@ -333,12 +426,47 @@ if [[ $action == 'pull' ]]; then
     fi
     if [[ "$pushDbaseResult" == *"$replaceSuccessMessage"* ]] ; then
 
-      printf 'Made%s\n' "${pushDbaseResult#*Made}"
+      printf '%s\n' "${pushDbaseResult}"
     else
       echo Failed to search and replace
       exit
     fi
+    elif [[ $run == "dry-run" ]]; then
+      echo Dry Run Sync of Remote Dbase 
 
+    runLocation=$(pwd)
+    cd "$localWebsite"..
+    wp db export db.sql
+    scp -r db.sql $server:$remoteWebsite../db.sql 
+    cd $runLocation
+    echo ABOUT TO DRY-RUN 
+    pushDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pushDbaseDryRun $remoteDBName $searchreplaceOldWebsiteName)
+
+    successMessage='Success: Imported'
+    replaceSuccessMessage='replacements'
+    if [[ "$pushDbaseResult" == *"$successMessage"* ]] ; then
+      echo $successMessage database
+    else
+      echo Failed to import
+      exit
+    fi
+    if [[ "$pushDbaseResult" == *"$replaceSuccessMessage"* ]] ; then
+
+      printf '%s\n' "${pushDbaseResult}"
+    else
+      echo Failed to search and replace
+      exit
+    fi
+ 
+
+
+
+
+    else
+      echo Rollback of Remote Dbase 
+      pushDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pushDbaseRollback $remoteDBName $searchreplaceOldWebsiteName)
+      printf '%s\n' "${pushDbaseResult}"
+    fi
 
   else
     exit 1
@@ -350,8 +478,14 @@ if [[ $action == 'pull' ]]; then
 
 }
 
-sanity_check
-doSync
-doDbaseSync
+sanity_check_WPContent
+if [ $syncWPContent == true ]; then
+  doSync
+fi
+sanity_check_Dbase
+if [ $syncDbase == true ]; then
+  doDbaseSync
+fi
+
 
 
