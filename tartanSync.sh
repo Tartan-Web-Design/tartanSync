@@ -72,21 +72,26 @@ if [ $1 == "path" ] # Check to find out if the remote directory in arg 2 exists.
   elif [ $1 == "pushDbase" ] # Actions to take on the remote plesk server to push the database to plesk and search/replace
     then 
       site_url=$2
+      prefix='https://'
       old_url=$3
       siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}') # Get the siteiD from plesk wp-toolkit
+      new_site_url=${site_url#"$prefix"}
+
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db export db_bak.sql # Create the backup
       wait
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db import db.sql # Import the database dump previously scp'd
       wait
-      plesk ext wp-toolkit --wp-cli -instance-id $siteID -- search-replace $old_url $site_url # rewrite the local url to the remote url
+      plesk ext wp-toolkit --wp-cli -instance-id $siteID -- search-replace $old_url $new_site_url # rewrite the local url to the remote url
       wait
       rm db.sql
       exit
-	elif [ $1 == "pushDbaseDryRun" ] # Actions to take on the remote plesk server to push the database to plesk and search/replace
+  elif [ $1 == "pushDbaseDryRun" ] # Actions to take on the remote plesk server to push the database to plesk and search/replace
     then 
       site_url=$2
+      prefix='https://'
       old_url=$3
       siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}') # Get the siteiD from plesk wp-toolkit
+      site_url=${site_url#"$prefix"}
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db export db_dryrun.sql
       wait
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db import db.sql # Import the database dump previously scp'd
@@ -114,10 +119,39 @@ if [ $1 == "path" ] # Check to find out if the remote directory in arg 2 exists.
     then 
       usage
   else # at this point we have three args, as per usage.
-  	action=$1
+    action=$1
 fi
 
-
+# Check to see if mysql is available in this term on local
+STR=$(printenv | grep mysql)
+SUB='mysql'
+if [[ "$STR" != *"$SUB"* ]]; then
+  echo "You don't have mysql available in ENV.  You'll be needing that..."
+  echo "Because I'm helpful, here's the command:"
+  echo "export PATH=${PATH}:/usr/local/mysql/bin/ && source ~/.zshrc"
+  echo "and oh, you do have mysql installed right ;-)"
+  exit
+fi
+# Check to see if wp-cli is available in this term on local
+STR=$(wp | grep WordPress)
+SUB='WordPress'
+if [[ "$STR" != *"$SUB"* ]]; then
+  echo "You don't have wp-cli installed and/or aliased to wp.  You'll be needing that..."
+  echo "Here's where to find the how-to..."
+  echo "https://wp-cli.org/"
+  echo "But in case that site goes offline, here are the commands:"
+  echo "First, download it:"
+  echo "   curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar"
+  echo "Then, check it's installed by:"
+  echo "   php wp-cli.phar --info"
+  echo "If it is, then make it executable:"
+  echo "   chmod +x wp-cli.phar"
+  echo "Then move it to binaries:"
+  echo "   sudo mv wp-cli.phar /usr/local/bin/wp"
+  echo "Finally check it again by:"
+  echo "   wp --info"
+  exit
+fi
 
 # Test for the existence of each entry in localPath on the machine the script is running on.
 # Then, as a belt a braces move, remove the last character of that path if it's a '/', but not otherwise,
@@ -153,12 +187,15 @@ if [[ $action == 'pull' ]];
     searchreplaceOldWebsiteName="$2.local"
     searchreplaceNewWebsiteName=$3
   else
-    echo "Not pushing or pulling"
+    echo "You sure you typed that right?  You haven't asked for a push or a pull..."
     exit 1
 fi
 
 localWebsite="$thisLocalPath$localWebsiteName$localByFlywheelSubPath$serverPathSecondPart" 
 # E.g. /Users/Scott/Local Sites/testwildcampingscot/app/public/wp-content/
+
+
+
 
 # Detect from the remote website name whether this is a sub-domain, but counting the '.'s
 
@@ -206,6 +243,26 @@ if [ "$dirExists" = false ] ;
   else
     echo "Remote dir found.  All good..."
 fi
+
+
+# Check to see if the table_prefix remote and locally are the same.  Warn and exit if not.
+table_prefix_local=$(grep table_prefix < "${localWebsite}"../wp-config.php)
+table_prefix_remote=$(ssh $server grep table_prefix "${remoteWebsite}"../wp-config.php)
+
+if [[ "$table_prefix_local" != "$table_prefix_remote" ]]; then
+    echo "Mismatch between the table_prefixes in remote and local wp-config.php files."
+    echo "Better to be safe than sorry, so halting this now so it can be fixed."
+    echo "Here are the values:"
+    echo "   On the remote server, this was found:"
+    echo "      $table_prefix_remote"
+    echo "   And on the local server, this was found:"
+    echo "      $table_prefix_local"
+
+    exit
+fi
+
+
+
 
 # Get the user and group owners of the remoteWebsite dir, to make sure we set them back once we transfer
 websiteChown=$(ssh $server 'bash -s' < ./tartanSync.sh chn $remoteWebsite)
@@ -377,18 +434,20 @@ if [[ $action == 'pull' ]];
   then
     if [[ $run == "full-run" ]]; 
       then
+
         echo Syncing Dbase 
-        pullDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pullDbase $remoteDBName)
+        pullDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pullDbase https://$remoteDBName)
         scp -r $server:$remoteWebsite/../db.sql "${localWebsite}"..
         cd "$localWebsite"..
         wp db export db_bak.sql
         wp db import db.sql 
         echo Replacing $searchreplaceOldWebsiteName with $searchreplaceNewWebsiteName
         wp search-replace $searchreplaceOldWebsiteName $searchreplaceNewWebsiteName 
+
     elif [[ $run == "dry-run" ]]; 
       then
         echo Dry Run Sync of Dbase 
-        pullDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pullDbase $remoteDBName)
+        pullDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pullDbase https://$remoteDBName)
         scp -r $server:$remoteWebsite/../db.sql "${localWebsite}"..
         cd "$localWebsite"..
         wp db export db_dryrun.sql
@@ -414,8 +473,10 @@ if [[ $action == 'pull' ]];
           wp db export db.sql
           scp -r db.sql $server:$remoteWebsite../db.sql 
           cd $runLocation
-          pushDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pushDbase $remoteDBName $searchreplaceOldWebsiteName)
-
+          echo cd $runLocation
+          echo $remoteDBName $searchreplaceOldWebsiteName
+          pushDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pushDbase https://$remoteDBName $searchreplaceOldWebsiteName)
+          echo pushDbaseResult $pushDbaseResult
           successMessage='Success: Imported'
           replaceSuccessMessage='replacements'
           if [[ "$pushDbaseResult" == *"$successMessage"* ]] ; 
@@ -444,7 +505,7 @@ if [[ $action == 'pull' ]];
           scp -r db.sql $server:$remoteWebsite../db.sql 
           cd $runLocation
           echo ABOUT TO DRY-RUN 
-          pushDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pushDbaseDryRun $remoteDBName $searchreplaceOldWebsiteName)
+          pushDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pushDbaseDryRun https://$remoteDBName $searchreplaceOldWebsiteName)
 
           successMessage='Success: Imported'
           replaceSuccessMessage='replacements'
@@ -488,6 +549,5 @@ if [ $syncDbase == true ];
   then
     doDbaseSync
 fi
-
 
 
