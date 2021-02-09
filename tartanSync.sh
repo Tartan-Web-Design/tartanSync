@@ -491,7 +491,7 @@ if [[ $action == 'pull' ]];
         cd "$localWebsite"..
         wp db export db_bak.sql
         wp db import db.sql 
-        echo Replacing $searchreplaceOldWebsiteName with $searchreplaceNewWebsiteName
+        echo Search and Replace - Replacing $searchreplaceOldWebsiteName with $searchreplaceNewWebsiteName
         wp search-replace $searchreplaceOldWebsiteName $searchreplaceNewWebsiteName 
 
     elif [[ $run == "dry-run" ]]; 
