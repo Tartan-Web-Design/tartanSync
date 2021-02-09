@@ -250,6 +250,7 @@ table_prefix_local=$(grep table_prefix < "${localWebsite}"../wp-config.php)
 table_prefix_remote=$(ssh $server grep table_prefix "${remoteWebsite}"../wp-config.php)
 
 if [[ "$table_prefix_local" != "$table_prefix_remote" ]]; then
+    echo "***************************************************************************"
     echo "Mismatch between the table_prefixes in remote and local wp-config.php files."
     echo "Better to be safe than sorry, so halting this now so it can be fixed."
     echo "Here are the values:"
@@ -257,12 +258,61 @@ if [[ "$table_prefix_local" != "$table_prefix_remote" ]]; then
     echo "      $table_prefix_remote"
     echo "   And on the local server, this was found:"
     echo "      $table_prefix_local"
-
+    echo "***************************************************************************"
     exit
 fi
 
+# Check to see if the local wp-config.php has a mysqld.sock set for this site
+mysqld_sock=$(grep DB_HOST < "${localWebsite}"../wp-config.php)
+if [[ $mysqld_sock != *"mysqld.sock"* ]]; then
+  echo "***************************************************************************"
+  echo "You haven't set the mysqld sock, have you..."
+  echo "OK, the instructions are in github readme, here's the link:"
+  echo "https://github.com/Tartan-Web-Design/tartanSync"
+  echo "But essentially, you need to:"
+  echo "  1. Go to the Local app,"
+  echo "  2. Press the (i) next to PHP Version"
+  echo "  3. Find the line under Loaded Configuration File"
+  echo "  4. Copy the string between /run/ and /conf/ (should look like random characters"
+  echo "  5. Go the wp-config.php, and find the line that looks like:"
+  echo "      define( 'DB_HOST', 'localhost' );"
+  echo "  6. And replace it with this line:"
+  echo "      define( 'DB_HOST', 'localhost:/Users/scott/Library/Application Support/Local/run/XXXXXXX/mysql/mysqld.sock' );"
+  echo "  where XXXXXXX is the string from step (4)"
+  echo "It just needs done once, at the creation of each new local site"
+  echo "***************************************************************************"
+  exit
+fi
+
+# Check to see if the remote site has SSL enabled 
+remote_https_check=$(curl -s https://$remoteDBName)
+if [[ $remote_https_check != *"https://$remoteDBName"* ]]; then
+  echo "***************************************************************************"
+  echo "Just checked the remote site there - doesn't have SSL enabled"
+  echo "   OR it's not running"
+  echo "   OR Wordpress isn't installed"
+  echo "Could you sort that out first please."
+  echo "I need both sides to have SSL later in the process"
+  echo "Ta"
+  echo "***************************************************************************"
+  exit
+fi
+# Check to see if the local site has SSL enabled 
 
 
+local_https_check=$(curl -s https://$localWebsiteName.local)
+
+if [[ $local_https_check != *"https://$localWebsiteName.local"* ]]; then
+  echo "***************************************************************************"
+  echo "Just checked the local site there - doesn't have SSL enabled"
+  echo "   OR it's not running"
+  echo "   OR Wordpress isn't installed"
+  echo "Could you sort that out first please."
+  echo "I need both sides to have SSL later in the process"
+  echo "Ta"
+  echo "***************************************************************************"
+  exit
+fi
 
 # Get the user and group owners of the remoteWebsite dir, to make sure we set them back once we transfer
 websiteChown=$(ssh $server 'bash -s' < ./tartanSync.sh chn $remoteWebsite)
