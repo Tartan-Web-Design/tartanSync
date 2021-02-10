@@ -285,34 +285,33 @@ if [[ $mysqld_sock != *"mysqld.sock"* ]]; then
 fi
 
 # Check to see if the remote site has SSL enabled 
-remote_https_check=$(curl -s https://$remoteDBName)
-if [[ $remote_https_check != *"https://$remoteDBName"* ]]; then
-  echo "***************************************************************************"
-  echo "Just checked the remote site there - doesn't have SSL enabled"
-  echo "   OR it's not running"
-  echo "   OR Wordpress isn't installed"
-  echo "Could you sort that out first please."
-  echo "I need both sides to have SSL later in the process"
-  echo "Ta"
-  echo "***************************************************************************"
-  exit
-fi
+# remote_https_check=$(curl -s https://$remoteDBName)
+# if [[ $remote_https_check != *"https://$remoteDBName"* ]]; then
+#   echo "***************************************************************************"
+#   echo "Just checked the remote site there - doesn't have SSL enabled"
+#   echo "   OR it's not running"
+#   echo "   OR Wordpress isn't installed"
+#   echo "Could you sort that out first please."
+#   echo "I need both sides to have SSL later in the process"
+#   echo "Ta"
+#   echo "***************************************************************************"
+#   exit
+# fi
+
 # Check to see if the local site has SSL enabled 
 
-
-local_https_check=$(curl -s https://$localWebsiteName.local)
-
-if [[ $local_https_check != *"https://$localWebsiteName.local"* ]]; then
-  echo "***************************************************************************"
-  echo "Just checked the local site there - doesn't have SSL enabled"
-  echo "   OR it's not running"
-  echo "   OR Wordpress isn't installed"
-  echo "Could you sort that out first please."
-  echo "I need both sides to have SSL later in the process"
-  echo "Ta"
-  echo "***************************************************************************"
-  exit
-fi
+# local_https_check=$(curl -s https://$localWebsiteName.local)
+# if [[ $local_https_check != *"https://$localWebsiteName.local"* ]]; then
+#   echo "***************************************************************************"
+#   echo "Just checked the local site there - doesn't have SSL enabled"
+#   echo "   OR it's not running"
+#   echo "   OR Wordpress isn't installed"
+#   echo "Could you sort that out first please."
+#   echo "I need both sides to have SSL later in the process"
+#   echo "Ta"
+#   echo "***************************************************************************"
+#   exit
+# fi
 
 # Get the user and group owners of the remoteWebsite dir, to make sure we set them back once we transfer
 websiteChown=$(ssh $server 'bash -s' < ./tartanSync.sh chn $remoteWebsite)
