@@ -66,7 +66,10 @@ if [ $1 == "path" ] # Check to find out if the remote directory in arg 2 exists.
   elif [ $1 == "pullDbase" ] # Actions to take on the remote plesk server to pull the database
     then 
       site_url=$2
+
       siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}') # Get the siteiD from plesk wp-toolkit
+      echo site_url $site_url
+      echo siteID $siteID
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db export db.sql # Use that ID to export the database.
       exit
   elif [ $1 == "pushDbase" ] # Actions to take on the remote plesk server to push the database to plesk and search/replace
@@ -75,15 +78,13 @@ if [ $1 == "path" ] # Check to find out if the remote directory in arg 2 exists.
       prefix='https://'
       old_url=$3
       siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}') # Get the siteiD from plesk wp-toolkit
-      new_site_url=${site_url#"$prefix"}
+      site_url=${site_url#"$prefix"}
 
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db export db_bak.sql # Create the backup
       wait
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db import db.sql # Import the database dump previously scp'd
       wait
-      plesk ext wp-toolkit --wp-cli -instance-id $siteID -- search-replace $old_url $new_site_url # rewrite the local url to the remote url
-      wait
-      rm db.sql
+      plesk ext wp-toolkit --wp-cli -instance-id $siteID -- search-replace $old_url $site_url # rewrite the local url to the remote url
       exit
   elif [ $1 == "pushDbaseDryRun" ] # Actions to take on the remote plesk server to push the database to plesk and search/replace
     then 
@@ -91,22 +92,31 @@ if [ $1 == "path" ] # Check to find out if the remote directory in arg 2 exists.
       prefix='https://'
       old_url=$3
       siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}') # Get the siteiD from plesk wp-toolkit
-      site_url=${site_url#"$prefix"}
+ echo arg2 is $2
+echo arg3 is $3
+echo siteID is $siteID
+echo site_url is $site_url
+echo old_url is $old_url
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db export db_dryrun.sql
       wait
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db import db.sql # Import the database dump previously scp'd
       wait
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- search-replace $old_url $site_url --dry-run # rewrite the local url to the remote url
       wait
+      site_url=${site_url#"$prefix"}
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db import db_dryrun.sql
-      wait
-      rm db_dryrun.sql
       exit
   elif [ $1 == "pushDbaseRollback" ] # Actions to take on the remote plesk server to push the database to plesk and search/replace
     then 
       site_url=$2
       old_url=$3
       siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}') # Get the siteiD from plesk wp-toolkit
+ echo arg2 is $2
+echo arg3 is $3
+echo siteID is $siteID
+echo site_url is $site_url
+echo old_url is $old_url
+
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db import db_bak.sql
       exit
   elif [ $1 == "chn" ] # Get the user and group of wp-content on plesk
@@ -245,22 +255,6 @@ if [ "$dirExists" = false ] ;
 fi
 
 
-# Check to see if the table_prefix remote and locally are the same.  Warn and exit if not.
-table_prefix_local=$(grep table_prefix < "${localWebsite}"../wp-config.php)
-table_prefix_remote=$(ssh $server grep table_prefix "${remoteWebsite}"../wp-config.php)
-
-if [[ "$table_prefix_local" != "$table_prefix_remote" ]]; then
-    echo "***************************************************************************"
-    echo "Mismatch between the table_prefixes in remote and local wp-config.php files."
-    echo "Better to be safe than sorry, so halting this now so it can be fixed."
-    echo "Here are the values:"
-    echo "   On the remote server, this was found:"
-    echo "      $table_prefix_remote"
-    echo "   And on the local server, this was found:"
-    echo "      $table_prefix_local"
-    echo "***************************************************************************"
-    exit
-fi
 
 # Check to see if the local wp-config.php has a mysqld.sock set for this site
 mysqld_sock=$(grep DB_HOST < "${localWebsite}"../wp-config.php)
@@ -354,6 +348,12 @@ function sanity_check_WPContent {
       syncWPContent=false
     ;;
   esac
+
+
+
+
+
+
 }
 
 function sanity_check_Dbase {
@@ -392,6 +392,29 @@ function sanity_check_Dbase {
       syncDbase=false
     ;;
   esac
+
+if [[ "$run" == "full-run" || "$run" == "roll-back" ]]; then
+
+      # Check to see if the table_prefix remote and locally are the same.  Warn and exit if not.
+      table_prefix_local=$(grep table_prefix < "${localWebsite}"../wp-config.php)
+      table_prefix_remote=$(ssh $server grep table_prefix "${remoteWebsite}"../wp-config.php)
+
+      if [[ "$table_prefix_local" != "$table_prefix_remote" ]]; then
+    echo "***************************************************************************"
+    echo "Mismatch between the table_prefixes in remote and local wp-config.php files."
+    echo "Better to be safe than sorry, so halting this now so it can be fixed."
+    echo "Here are the values:"
+    echo "   On the remote server, this was found:"
+    echo "      $table_prefix_remote"
+    echo "   And on the local server, this was found:"
+    echo "      $table_prefix_local"
+    echo "***************************************************************************"
+    exit
+
+    fi
+
+fi
+
 }
 
 
@@ -429,6 +452,9 @@ function doSync {
 
           echo ""
           echo This is a DRY RUN, PUSH...
+          echo localWebsite $localWebsite
+          echo remoteWebsite $remoteWebsite
+          echo 'rsync --dry-run --owner --group --archive  --compress --delete -e  "ssh -i ~/.ssh/rsync -p 22" --stats "${localWebsite}" "$server:${remoteWebsite}"'
 
           rsync --dry-run --owner --group --archive  --compress --delete -e  "ssh -i ~/.ssh/rsync -p 22" --stats "${localWebsite}" "$server:${remoteWebsite}"
 
@@ -486,18 +512,23 @@ if [[ $action == 'pull' ]];
 
         echo Syncing Dbase 
         pullDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pullDbase https://$remoteDBName)
-        scp -r $server:$remoteWebsite/../db.sql "${localWebsite}"..
+        scp -r $server:$remoteWebsite../db.sql "${localWebsite}"..
+        ssh $server rm $remoteWebsite../db.sql
         cd "$localWebsite"..
         wp db export db_bak.sql
         wp db import db.sql 
         echo Search and Replace - Replacing $searchreplaceOldWebsiteName with $searchreplaceNewWebsiteName
         wp search-replace $searchreplaceOldWebsiteName $searchreplaceNewWebsiteName 
+        rm db_dryrun.sql
+        rm db.sql
 
     elif [[ $run == "dry-run" ]]; 
       then
         echo Dry Run Sync of Dbase 
         pullDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pullDbase https://$remoteDBName)
-        scp -r $server:$remoteWebsite/../db.sql "${localWebsite}"..
+        echo pullDbaseResult $pullDbaseResult
+        scp -r $server:$remoteWebsite../db.sql "${localWebsite}"..
+        ssh $server rm $remoteWebsite../db.sql
         cd "$localWebsite"..
         wp db export db_dryrun.sql
         wp db import db.sql 
@@ -521,11 +552,11 @@ if [[ $action == 'pull' ]];
           cd "$localWebsite"..
           wp db export db.sql
           scp -r db.sql $server:$remoteWebsite../db.sql 
+          rm db.sql
           cd $runLocation
-          echo cd $runLocation
           echo $remoteDBName $searchreplaceOldWebsiteName
           pushDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pushDbase https://$remoteDBName $searchreplaceOldWebsiteName)
-          echo pushDbaseResult $pushDbaseResult
+          ssh $server rm $remoteWebsite../db.sql
           successMessage='Success: Imported'
           replaceSuccessMessage='replacements'
           if [[ "$pushDbaseResult" == *"$successMessage"* ]] ; 
@@ -552,10 +583,11 @@ if [[ $action == 'pull' ]];
           cd "$localWebsite"..
           wp db export db.sql
           scp -r db.sql $server:$remoteWebsite../db.sql 
+          rm db.sql
           cd $runLocation
           echo ABOUT TO DRY-RUN 
           pushDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pushDbaseDryRun https://$remoteDBName $searchreplaceOldWebsiteName)
-
+          ssh $server rm $remoteWebsite../db.sql
           successMessage='Success: Imported'
           replaceSuccessMessage='replacements'
           if [[ "$pushDbaseResult" == *"$successMessage"* ]] ; 
