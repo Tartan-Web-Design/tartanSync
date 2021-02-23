@@ -78,8 +78,7 @@ if [ $1 == "path" ] # Check to find out if the remote directory in arg 2 exists.
       prefix='https://'
       old_url=$3
       siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}') # Get the siteiD from plesk wp-toolkit
-      site_url=${site_url#"$prefix"}
-
+      site_url=${site_url#"$prefix"} # site_url starts as https:// but needs that stripped away for the search-replace
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db export db_bak.sql # Create the backup
       wait
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db import db.sql # Import the database dump previously scp'd
@@ -110,6 +109,7 @@ echo old_url is $old_url
     then 
       site_url=$2
       old_url=$3
+      prefix='https://'
       siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}') # Get the siteiD from plesk wp-toolkit
  echo arg2 is $2
 echo arg3 is $3
@@ -586,6 +586,7 @@ if [[ $action == 'pull' ]];
           rm db.sql
           cd $runLocation
           echo ABOUT TO DRY-RUN 
+
           pushDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pushDbaseDryRun https://$remoteDBName $searchreplaceOldWebsiteName)
           ssh $server rm $remoteWebsite../db.sql
           successMessage='Success: Imported'
@@ -608,7 +609,9 @@ if [[ $action == 'pull' ]];
 
       else
           echo Rollback of Remote Dbase 
-          pushDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pushDbaseRollback $remoteDBName $searchreplaceOldWebsiteName)
+          echo remoteDBName: $remoteDBName
+          echo searchreplaceOldWebsiteName $searchreplaceOldWebsiteName
+          pushDbaseResult=$(ssh $server 'bash -s' < ./tartanSync.sh pushDbaseRollback https://$remoteDBName $searchreplaceOldWebsiteName)
           printf '%s\n' "${pushDbaseResult}"
       fi
 
@@ -630,5 +633,4 @@ if [ $syncDbase == true ];
   then
     doDbaseSync
 fi
-
 
