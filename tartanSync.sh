@@ -91,11 +91,6 @@ if [ $1 == "path" ] # Check to find out if the remote directory in arg 2 exists.
       prefix='https://'
       old_url=$3
       siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}') # Get the siteiD from plesk wp-toolkit
- echo arg2 is $2
-echo arg3 is $3
-echo siteID is $siteID
-echo site_url is $site_url
-echo old_url is $old_url
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db export db_dryrun.sql
       wait
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db import db.sql # Import the database dump previously scp'd
@@ -111,12 +106,6 @@ echo old_url is $old_url
       old_url=$3
       prefix='https://'
       siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}') # Get the siteiD from plesk wp-toolkit
- echo arg2 is $2
-echo arg3 is $3
-echo siteID is $siteID
-echo site_url is $site_url
-echo old_url is $old_url
-
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db import db_bak.sql
       exit
   elif [ $1 == "chn" ] # Get the user and group of wp-content on plesk
@@ -278,35 +267,6 @@ if [[ $mysqld_sock != *"mysqld.sock"* ]]; then
   exit
 fi
 
-# Check to see if the remote site has SSL enabled 
-# remote_https_check=$(curl -s https://$remoteDBName)
-# if [[ $remote_https_check != *"https://$remoteDBName"* ]]; then
-#   echo "***************************************************************************"
-#   echo "Just checked the remote site there - doesn't have SSL enabled"
-#   echo "   OR it's not running"
-#   echo "   OR Wordpress isn't installed"
-#   echo "Could you sort that out first please."
-#   echo "I need both sides to have SSL later in the process"
-#   echo "Ta"
-#   echo "***************************************************************************"
-#   exit
-# fi
-
-# Check to see if the local site has SSL enabled 
-
-# local_https_check=$(curl -s https://$localWebsiteName.local)
-# if [[ $local_https_check != *"https://$localWebsiteName.local"* ]]; then
-#   echo "***************************************************************************"
-#   echo "Just checked the local site there - doesn't have SSL enabled"
-#   echo "   OR it's not running"
-#   echo "   OR Wordpress isn't installed"
-#   echo "Could you sort that out first please."
-#   echo "I need both sides to have SSL later in the process"
-#   echo "Ta"
-#   echo "***************************************************************************"
-#   exit
-# fi
-
 # Get the user and group owners of the remoteWebsite dir, to make sure we set them back once we transfer
 websiteChown=$(ssh $server 'bash -s' < ./tartanSync.sh chn $remoteWebsite)
 echo User:Group - $websiteChown
@@ -452,8 +412,6 @@ function doSync {
 
           echo ""
           echo This is a DRY RUN, PUSH...
-          echo localWebsite $localWebsite
-          echo remoteWebsite $remoteWebsite
           echo 'rsync --dry-run --owner --group --archive  --compress --delete -e  "ssh -i ~/.ssh/rsync -p 22" --stats "${localWebsite}" "$server:${remoteWebsite}"'
 
           rsync --dry-run --owner --group --archive  --compress --delete -e  "ssh -i ~/.ssh/rsync -p 22" --stats "${localWebsite}" "$server:${remoteWebsite}"
