@@ -63,6 +63,18 @@ if [ $1 == "path" ] # Check to find out if the remote directory in arg 2 exists.
         echo "false"
     fi
     exit
+  elif [ $1 == "getPath" ] # Actions to take on the remote plesk server to pull the database
+    then 
+      site_url=$2
+
+      if [[ -d /var/www/vhosts/system/$site_url/conf/ ]]
+      then
+        sudo cat /var/www/vhosts/system/$site_url/conf/httpd.conf | grep DocumentRoot | sed 's/^[^\"]*\"//' | sed 's/\(.*\)\"/\1/'
+      else
+        echo "false"
+      fi
+      
+      exit
   elif [ $1 == "pullDbase" ] # Actions to take on the remote plesk server to pull the database
     then 
       site_url=$2
@@ -79,6 +91,7 @@ if [ $1 == "path" ] # Check to find out if the remote directory in arg 2 exists.
       old_url=$3
       siteID=$(plesk ext wp-toolkit --list | grep $site_url | awk '{print $1;}') # Get the siteiD from plesk wp-toolkit
       site_url=${site_url#"$prefix"} # site_url starts as https:// but needs that stripped away for the search-replace
+
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db export db_bak.sql # Create the backup
       wait
       plesk ext wp-toolkit --wp-cli -instance-id $siteID -- db import db.sql # Import the database dump previously scp'd
@@ -198,15 +211,15 @@ localWebsite="$thisLocalPath$localWebsiteName$localByFlywheelSubPath$serverPathS
 
 # Detect from the remote website name whether this is a sub-domain, but counting the '.'s
 
-count=$(awk -F"." '{print NF-1}' <<< "${remoteWebsiteName}")
+# count=$(awk -F"." '{print NF-1}' <<< "${remoteWebsiteName}")
 
-if [ $count = 2 ] ; 
-  then # it's a subdomain, e.g. test.tartan.com
-    primaryDomain=$(echo $remoteWebsiteName | sed 's/^[^.]*.//g')
-    remoteWebsiteName=$primaryDomain/$remoteWebsiteName
-  else # it's a domain, e.g. tartan.com
-    remoteWebsiteName="$remoteWebsiteName$serverPrimaryPathPart"
-fi
+# if [ $count = 2 ] ; 
+#   then # it's a subdomain, e.g. test.tartan.com
+#     primaryDomain=$(echo $remoteWebsiteName | sed 's/^[^.]*.//g')
+#     remoteWebsiteName=$primaryDomain/$remoteWebsiteName
+#   else # it's a domain, e.g. tartan.com
+#     remoteWebsiteName="$remoteWebsiteName$serverPrimaryPathPart"
+# fi
 
 remoteWebsite="$serverPathFirstPart$remoteWebsiteName$serverPathSecondPart"  
 # e.g. /var/www/vhosts/wildcamping.scot/test.wildcamping.scot/wp-content/
@@ -232,14 +245,33 @@ if [[ -d $localWebsite ]]
     exit 1
 fi
 
-dirExists=$(ssh $server 'bash -s' < ./tartanSync.sh path $remoteWebsite)
+# dirExists=$(ssh $server 'bash -s' < ./tartanSync.sh path $remoteWebsite)
+
+# Original remoteWebsite
+# /var/www/vhosts/org.uk/blighty.org.uk/wp-content/
+# /var/www/vhosts/wildcamping.scot/test.wildcamping.scot/wp-content/
+# /var/www/vhosts/wildcamping.scot/httpdocs/wp-content/
+
+# /var/www/vhosts/wildcamping.scot/httpdocs
+# /var/www/vhosts/wildcamping.scot/test.wildcamping.scot
+# /var/www/vhosts/blighty.org.uk/httpdocs
+
+# /var/www/vhosts/blighty.org.uk/httpdocs/
+# /var/www/vhosts/wildcamping.scot/test.wildcamping.scot/
+# /var/www/vhosts/wildcamping.scot/httpdocs/
+
+# /var/www/vhosts/wildcamping.scot/httpdocs/wp-content/
+# /var/www/vhosts/blighty.org.uk/httpdocs/wp-content/
 
 
-if [ "$dirExists" = false ] ; 
+remoteWebsite=$(ssh $server 'bash -s' < ./tartanSync.sh getPath $remoteWebsiteName) 
+
+if [ "$remoteWebsite" = false ] ; 
   then
     echo 'Hmmm.... Remote website not found.  Exiting...'
     exit 1
   else
+    remoteWebsite=$remoteWebsite/wp-content/
     echo "Remote dir found.  All good..."
 fi
 
@@ -517,6 +549,7 @@ if [[ $action == 'pull' ]];
           ssh $server rm $remoteWebsite../db.sql
           successMessage='Success: Imported'
           replaceSuccessMessage='replacements'
+
           if [[ "$pushDbaseResult" == *"$successMessage"* ]] ; 
             then
               echo $successMessage database
@@ -591,4 +624,3 @@ if [ $syncDbase == true ];
   then
     doDbaseSync
 fi
-
